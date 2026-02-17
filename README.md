@@ -18,7 +18,7 @@ ZigAuth is the first comprehensive authentication and authorization framework fo
 - 🎫 **JWT Tokens**: HMAC-SHA256 signing, verification, refresh tokens ✅
 - 📝 **Sessions**: Memory storage with cookie support, thread-safe operations ✅
 - 👥 **RBAC**: Role-Based Access Control with permission wildcards ✅
-- 🔌 **Framework Adapters**: Zigzap, http.zig, Jetzig, Tokamak (Planned)
+- 🔌 **Zigzap Adapter**: Session, JWT, and RBAC middleware for Zigzap framework ✅
 
 ## 📦 Installation
 
@@ -126,6 +126,42 @@ try store_interface.update(session);
 try store_interface.destroy(session.id);
 ```
 
+### Zigzap Adapter
+
+```zig
+const std = @import("std");
+const zap = @import("zap");
+const zigauth = @import("zigauth");
+
+// Initialize authentication components
+var session_store = zigauth.storage.memory.MemoryStore.init(allocator);
+defer session_store.deinit();
+
+var rbac = zigauth.authz.rbac.RBAC.init(allocator);
+defer rbac.deinit();
+
+// Define roles
+const admin_role = zigauth.authz.rbac.Role{
+    .name = "admin",
+    .permissions = &[_][]const u8{"*"},
+};
+try rbac.defineRole(admin_role);
+try rbac.assignRole("user_123", "admin");
+
+// Use middleware in your Zigzap routes
+const store_interface = session_store.store();
+const session_config = zigauth.adapters.zigzap.SessionConfig{
+    .store = &store_interface,
+    .required = true,
+};
+
+// Session middleware will automatically:
+// - Extract session cookies
+// - Validate sessions
+// - Attach user context to requests
+// - Return 401 if unauthorized
+```
+
 ### RBAC (Role-Based Access Control)
 
 ```zig
@@ -195,6 +231,14 @@ if (rbac.userHasAllPermissions("user_123", &required)) {
 - [x] Memory-safe role management
 - [x] Permission parsing (`resource:action`)
 
+**Zigzap Adapter**:
+- [x] Session authentication middleware
+- [x] JWT authentication middleware
+- [x] RBAC authorization middleware
+- [x] Cookie extraction and parsing
+- [x] Bearer token extraction
+- [x] Automatic 401/403 responses
+
 **Testing**:
 - [x] 61 comprehensive tests passing
 - [x] No memory leaks
@@ -211,17 +255,18 @@ zig build example-password
 zig build example-jwt
 zig build example-session
 zig build example-rbac
+zig build example-zigzap  # Web server demo
 zig build example  # Run all examples
 ```
 
 ## 🗺️ Roadmap
 
-### Phase 1: Foundation
+### Phase 1: Foundation ✅ COMPLETE
 - ✅ Password hashing
 - ✅ JWT tokens
 - ✅ Sessions
 - ✅ RBAC
-- 🚧 Zigzap adapter
+- ✅ Zigzap adapter
 
 ### Phase 2: Advanced Auth
 - OAuth2 & MFA support

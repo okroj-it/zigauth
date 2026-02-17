@@ -12,8 +12,8 @@ pub const authz = struct {
     pub const permissions = @import("authz/permissions.zig");
 };
 
-pub const middleware = struct {
-    // TODO: Implement middleware modules
+pub const adapters = struct {
+    pub const zigzap = @import("adapters/zigzap.zig");
 };
 
 pub const security = struct {
