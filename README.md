@@ -269,9 +269,12 @@ zig build example  # Run all examples
 - ✅ Zigzap adapter
 
 ### Phase 2: Advanced Auth
-- OAuth2 & MFA support
-- PBAC & ABAC authorization
-- CSRF protection & rate limiting
+- **OAuth2 Support**: Authorization Code Flow, Client Credentials, PKCE, provider integrations (GitHub, Google, Discord)
+- **MFA (Multi-Factor Authentication)**: TOTP, backup codes, SMS/Email codes, WebAuthn/FIDO2, recovery flows
+- **PBAC (Policy-Based Access Control)**: Policy engine, attribute-based rules, dynamic policies, policy composition
+- **ABAC (Attribute-Based Access Control)**: User/resource/environment attributes, relationship rules, fine-grained permissions
+- **CSRF Protection**: Token generation/validation, double-submit cookies, SameSite enforcement
+- **Rate Limiting**: Token bucket algorithm, sliding window, per-user limits, IP-based limits
 
 ### Phase 3: Framework Integrations
 - http.zig, Jetzig, Tokamak adapters
