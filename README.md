@@ -7,18 +7,18 @@
 
 ## 🚀 Status
 
-**Current Version**: v0.1.0-dev  
-**Phase**: Foundation (Week 1) - Password Hashing ✅
+**Current Version**: v0.1.0-dev
+**Phase**: Foundation - Password Hashing ✅
 
 ## 🎯 What is ZigAuth?
 
 ZigAuth is the first comprehensive authentication and authorization framework for Zig. It fills the #1 gap in the Zig ecosystem by providing:
 
 - 🔐 **Password Hashing**: Argon2id with OWASP-recommended settings
-- 🎫 **JWT Tokens**: Access + refresh with rotation (Coming Week 2)
-- 📝 **Sessions**: Memory and Redis backends (Coming Week 2)
-- 👥 **RBAC**: Role-Based Access Control with comptime validation (Coming Week 3)
-- 🔌 **Framework Adapters**: Zigzap, http.zig, Jetzig, Tokamak (Coming Week 4)
+- 🎫 **JWT Tokens**: Access + refresh with rotation (Coming soon)
+- 📝 **Sessions**: Memory and Redis backends (Coming soon)
+- 👥 **RBAC**: Role-Based Access Control with comptime validation (Planned)
+- 🔌 **Framework Adapters**: Zigzap, http.zig, Jetzig, Tokamak (Planned)
 
 ## 📦 Installation
 
@@ -68,7 +68,7 @@ pub fn main() !void {
 }
 ```
 
-## ✅ Week 1 Complete
+## ✅ Completed Features
 
 - [x] Project structure created
 - [x] Password hashing implemented (Argon2id)
@@ -86,14 +86,25 @@ zig build test
 
 ## 🗺️ Roadmap
 
-### Phase 1: Foundation (4 weeks)
-- ✅ **Week 1**: Password hashing
-- 🚧 **Week 2**: JWT + Sessions
-- 🚧 **Week 3**: RBAC
-- 🚧 **Week 4**: Zigzap adapter
+### Phase 1: Foundation
+- ✅ Password hashing
+- 🚧 JWT + Sessions
+- 🚧 RBAC
+- 🚧 Zigzap adapter
 
-### Phase 2-4: Advanced Features
-See [ZIGAUTH_PLAN.md](../zigumms/ZIGAUTH_PLAN.md) for full roadmap.
+### Phase 2: Advanced Auth
+- OAuth2 & MFA support
+- PBAC & ABAC authorization
+- CSRF protection & rate limiting
+
+### Phase 3: Framework Integrations
+- http.zig, Jetzig, Tokamak adapters
+- PostgreSQL & SQLite storage
+
+### Phase 4: Production Ready
+- Complete documentation
+- Performance benchmarks
+- Security audit
 
 ## 🤝 Contributing
 
