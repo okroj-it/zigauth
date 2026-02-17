@@ -10,17 +10,26 @@ pub const MemoryStore = struct {
     allocator: mem.Allocator,
     sessions: std.StringHashMap(SessionEntry),
     mutex: std.Thread.Mutex,
+    max_sessions: usize,
 
     const SessionEntry = struct {
         session: Session,
         owned: bool, // Whether this store owns the session data
     };
 
+    /// Default maximum number of concurrent sessions
+    const DEFAULT_MAX_SESSIONS = 10_000;
+
     pub fn init(allocator: mem.Allocator) MemoryStore {
+        return initWithLimit(allocator, DEFAULT_MAX_SESSIONS);
+    }
+
+    pub fn initWithLimit(allocator: mem.Allocator, max_sessions: usize) MemoryStore {
         return .{
             .allocator = allocator,
             .sessions = std.StringHashMap(SessionEntry).init(allocator),
             .mutex = .{},
+            .max_sessions = max_sessions,
         };
     }
 
@@ -59,6 +68,11 @@ pub const MemoryStore = struct {
         const self: *MemoryStore = @ptrCast(@alignCast(ptr));
         self.mutex.lock();
         defer self.mutex.unlock();
+
+        // SECURITY: Prevent DoS via unbounded session creation
+        if (self.sessions.count() >= self.max_sessions) {
+            return SessionError.TooManySessions;
+        }
 
         // Generate session ID
         // IMPORTANT: Use self.allocator for session data so it can be freed in destroy()
@@ -109,17 +123,23 @@ pub const MemoryStore = struct {
             .owned = true,
         });
 
-        // Return a copy for the caller
-        // IMPORTANT: If any of these allocations fail, the session is already stored
-        // in the HashMap, so we don't need to clean it up (it will be cleaned up on deinit)
+        // Return a copy for the caller with proper cleanup on partial allocation failure
+        const id_copy = try allocator.dupe(u8, new_session.id);
+        errdefer allocator.free(id_copy);
+
+        const uid_copy = try allocator.dupe(u8, new_session.user_id);
+        errdefer allocator.free(uid_copy);
+
+        const csrf_copy = if (new_session.csrf_token) |token| try allocator.dupe(u8, token) else null;
+
         return Session{
-            .id = try allocator.dupe(u8, new_session.id),
-            .user_id = try allocator.dupe(u8, new_session.user_id),
+            .id = id_copy,
+            .user_id = uid_copy,
             .data = std.StringHashMap([]const u8).init(allocator),
             .created_at = new_session.created_at,
             .expires_at = new_session.expires_at,
             .last_accessed = new_session.last_accessed,
-            .csrf_token = if (new_session.csrf_token) |token| try allocator.dupe(u8, token) else null,
+            .csrf_token = csrf_copy,
         };
     }
 
@@ -346,4 +366,24 @@ test "memory store - update session" {
     }
 
     try testing.expect(retrieved.last_accessed > old_accessed);
+}
+
+test "memory store - max sessions limit" {
+    const testing = std.testing;
+    const allocator = testing.allocator;
+
+    var store = MemoryStore.initWithLimit(allocator, 2);
+    defer store.deinit();
+
+    const store_interface = store.store();
+
+    const s1 = try store_interface.create(allocator, "user_1", 3600);
+    defer { var s = s1; s.deinit(allocator); }
+
+    const s2 = try store_interface.create(allocator, "user_2", 3600);
+    defer { var s = s2; s.deinit(allocator); }
+
+    // Third should fail
+    const result = store_interface.create(allocator, "user_3", 3600);
+    try testing.expectError(SessionError.TooManySessions, result);
 }

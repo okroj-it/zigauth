@@ -48,10 +48,14 @@ pub const Permission = struct {
 
     pub fn parse(permission: []const u8) ?Permission {
         const colon_idx = mem.indexOf(u8, permission, ":") orelse return null;
-        return .{
-            .resource = permission[0..colon_idx],
-            .action = permission[colon_idx + 1 ..],
-        };
+
+        const resource = permission[0..colon_idx];
+        const action = permission[colon_idx + 1 ..];
+
+        // Reject empty resource or action (e.g., ":", "resource:", ":action")
+        if (resource.len == 0 or action.len == 0) return null;
+
+        return .{ .resource = resource, .action = action };
     }
 
     pub fn toString(self: Permission, allocator: mem.Allocator) ![]u8 {
@@ -102,6 +106,11 @@ test "permissions - parse" {
 
     const invalid = Permission.parse("invalid");
     try testing.expect(invalid == null);
+
+    // Empty resource or action should be rejected
+    try testing.expect(Permission.parse(":read") == null);
+    try testing.expect(Permission.parse("users:") == null);
+    try testing.expect(Permission.parse(":") == null);
 }
 
 test "permissions - to string" {

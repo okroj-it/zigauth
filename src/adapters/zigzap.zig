@@ -27,6 +27,9 @@ pub const AuthContext = struct {
     }
 
     pub fn deinit(self: *AuthContext) void {
+        for (self.roles.items) |role| {
+            self.allocator.free(@constCast(role));
+        }
         self.roles.deinit();
     }
 
@@ -278,7 +281,7 @@ pub const CsrfMiddleware = struct {
         }
 
         // Validate CSRF token
-        self.validateCsrf(r, context) catch {
+        self.validateCsrf(r) catch {
             r.setStatus(.forbidden);
             r.sendBody("Forbidden: Invalid or missing CSRF token") catch {};
             return;
@@ -291,10 +294,7 @@ pub const CsrfMiddleware = struct {
     fn validateCsrf(
         self: *CsrfMiddleware,
         r: zap.Request,
-        context: *AuthContext,
     ) !void {
-        _ = context; // Context not needed for CSRF validation
-
         // Extract session ID from cookie
         const session_id = extractCookie(r, self.config.session_cookie_name) orelse
             return error.SessionNotFound;
@@ -333,11 +333,21 @@ fn extractCookie(r: zap.Request, name: []const u8) ?[]const u8 {
     const cookie_header = r.getHeader("cookie") orelse return null;
 
     // Parse cookies (format: "name1=value1; name2=value2")
-    var it = std.mem.splitSequence(u8, cookie_header, "; ");
-    while (it.next()) |cookie| {
+    // Handles edge cases: extra whitespace, missing values, quoted values
+    var it = std.mem.splitSequence(u8, cookie_header, ";");
+    while (it.next()) |raw_cookie| {
+        const cookie = std.mem.trim(u8, raw_cookie, " ");
+        if (cookie.len == 0) continue;
+
         if (std.mem.indexOf(u8, cookie, "=")) |eq_pos| {
-            const cookie_name = cookie[0..eq_pos];
-            const cookie_value = cookie[eq_pos + 1 ..];
+            const cookie_name = std.mem.trim(u8, cookie[0..eq_pos], " ");
+            var cookie_value = cookie[eq_pos + 1 ..];
+
+            // Strip surrounding quotes if present
+            if (cookie_value.len >= 2 and cookie_value[0] == '"' and cookie_value[cookie_value.len - 1] == '"') {
+                cookie_value = cookie_value[1 .. cookie_value.len - 1];
+            }
+
             if (std.mem.eql(u8, cookie_name, name)) {
                 return cookie_value;
             }

@@ -85,6 +85,7 @@ pub const Error = error{
     OutOfMemory,
     InvalidSessionId,
     CookieHeaderTooLarge,
+    TooManySessions,
 };
 
 /// Session storage interface

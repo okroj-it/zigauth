@@ -20,9 +20,10 @@ pub const adapters = struct {
     pub const tokamak = @import("adapters/tokamak.zig");
 };
 
-pub const security = struct {
-    // TODO: Implement security modules
-};
+// Security modules planned for Phase 2:
+// - Rate limiting (token bucket, sliding window)
+// - OAuth2 (authorization code flow, PKCE)
+// - MFA (TOTP, backup codes, WebAuthn)
 
 pub const storage = struct {
     pub const memory = @import("storage/memory.zig");
