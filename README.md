@@ -8,7 +8,7 @@
 ## 🚀 Status
 
 **Current Version**: v0.2.0-dev
-**Phase**: Foundation - Password Hashing ✅ | JWT Tokens ✅
+**Phase**: Foundation - Password Hashing ✅ | JWT Tokens ✅ | Sessions ✅
 
 ## 🎯 What is ZigAuth?
 
@@ -16,7 +16,7 @@ ZigAuth is the first comprehensive authentication and authorization framework fo
 
 - 🔐 **Password Hashing**: Argon2id with OWASP-recommended settings ✅
 - 🎫 **JWT Tokens**: HMAC-SHA256 signing, verification, refresh tokens ✅
-- 📝 **Sessions**: Memory and Redis backends (Coming soon)
+- 📝 **Sessions**: Memory storage with cookie support, thread-safe operations ✅
 - 👥 **RBAC**: Role-Based Access Control with comptime validation (Planned)
 - 🔌 **Framework Adapters**: Zigzap, http.zig, Jetzig, Tokamak (Planned)
 
@@ -82,6 +82,50 @@ const refresh = try jwt.generateRefreshToken(allocator);
 defer allocator.free(refresh);
 ```
 
+### Sessions
+
+```zig
+const zigauth = @import("zigauth");
+
+// Initialize session store
+var store = zigauth.storage.memory.MemoryStore.init(allocator);
+defer store.deinit();
+
+const store_interface = store.store();
+
+// Create session
+const session = try store_interface.create(allocator, "user_12345", 3600 * 24);
+defer {
+    var s = session;
+    s.deinit(allocator);
+}
+
+// Build Set-Cookie header
+const config = zigauth.auth.session.Config{};
+const cookie = zigauth.auth.session.Cookie.fromSession(session.id, config, 3600 * 24);
+const header = try cookie.toString(allocator);
+defer allocator.free(header);
+
+// Verify session is valid
+if (session.isValid()) {
+    // Session not expired
+}
+
+// Get session by ID
+const retrieved = try store_interface.get(allocator, session.id);
+defer {
+    var s = retrieved;
+    s.deinit(allocator);
+}
+
+// Update last accessed time
+session.touch();
+try store_interface.update(session);
+
+// Destroy session
+try store_interface.destroy(session.id);
+```
+
 ## ✅ Completed Features
 
 **Password Hashing**:
@@ -97,8 +141,16 @@ defer allocator.free(refresh);
 - [x] Refresh token generation
 - [x] Base64url encoding
 
+**Sessions**:
+- [x] Thread-safe in-memory storage
+- [x] Session creation, retrieval, update, destroy
+- [x] Cookie building with SameSite support
+- [x] Session expiration and validation
+- [x] Automatic cleanup of expired sessions
+- [x] Cookie parsing from headers
+
 **Testing**:
-- [x] 21 comprehensive tests passing
+- [x] 35 comprehensive tests passing
 - [x] No memory leaks
 - [x] Zero external dependencies
 
@@ -111,6 +163,7 @@ zig build test
 # Run examples
 zig build example-password
 zig build example-jwt
+zig build example-session
 zig build example  # Run all examples
 ```
 
@@ -119,7 +172,7 @@ zig build example  # Run all examples
 ### Phase 1: Foundation
 - ✅ Password hashing
 - ✅ JWT tokens
-- 🚧 Sessions
+- ✅ Sessions
 - 🚧 RBAC
 - 🚧 Zigzap adapter
 
