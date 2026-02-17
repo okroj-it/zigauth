@@ -7,8 +7,8 @@
 
 ## 🚀 Status
 
-**Current Version**: v0.2.0-dev
-**Phase**: Foundation - Password Hashing ✅ | JWT Tokens ✅ | Sessions ✅ | RBAC ✅
+**Current Version**: v0.2.0
+**Phase**: Foundation ✅ COMPLETE | Framework Adapters ✅ COMPLETE
 
 ## 🎯 What is ZigAuth?
 
@@ -27,7 +27,7 @@ Add to your `build.zig.zon`:
 ```zig
 .dependencies = .{
     .zigauth = .{
-        .url = "https://github.com/okroj-it/zigauth/archive/v0.1.0.tar.gz",
+        .url = "https://github.com/okroj-it/zigauth/archive/v0.2.0.tar.gz",
         .hash = "...",
     },
 },
