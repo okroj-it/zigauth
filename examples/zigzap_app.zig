@@ -11,23 +11,18 @@ const User = struct {
 
 var users = std.StringHashMap(User).init(std.heap.page_allocator);
 
-// Authentication context for middleware
-const Context = struct {
-    user_id: ?[]const u8 = null,
-    session_id: ?[]const u8 = null,
-    claims: ?zigauth.auth.jwt.Claims = null,
-};
+// Global session store (persists across requests)
+var global_session_store: ?zigauth.storage.memory.MemoryStore = null;
+var global_rbac: ?zigauth.authz.rbac.RBAC = null;
 
 pub fn main() !void {
     const allocator = std.heap.page_allocator;
 
-    // Initialize session store
-    var session_store = zigauth.storage.memory.MemoryStore.init(allocator);
-    defer session_store.deinit();
+    // Initialize global session store
+    global_session_store = zigauth.storage.memory.MemoryStore.init(allocator);
 
-    // Initialize RBAC
-    var rbac = zigauth.authz.rbac.RBAC.init(allocator);
-    defer rbac.deinit();
+    // Initialize global RBAC
+    global_rbac = zigauth.authz.rbac.RBAC.init(allocator);
 
     // Define roles
     const admin_role = zigauth.authz.rbac.Role{
@@ -45,9 +40,9 @@ pub fn main() !void {
         .permissions = &[_][]const u8{"posts:read"},
     };
 
-    try rbac.defineRole(admin_role);
-    try rbac.defineRole(editor_role);
-    try rbac.defineRole(viewer_role);
+    try global_rbac.?.defineRole(admin_role);
+    try global_rbac.?.defineRole(editor_role);
+    try global_rbac.?.defineRole(viewer_role);
 
     // Create demo users
     const admin_hash = try zigauth.auth.password.hash(allocator, "admin123", zigauth.auth.password.default_config);
@@ -69,8 +64,8 @@ pub fn main() !void {
     });
 
     // Assign roles
-    try rbac.assignRole("user_admin", "admin");
-    try rbac.assignRole("user_editor", "editor");
+    try global_rbac.?.assignRole("user_admin", "admin");
+    try global_rbac.?.assignRole("user_editor", "editor");
 
     std.debug.print("\n🚀 ZigAuth Demo Server Starting...\n", .{});
     std.debug.print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n", .{});
@@ -230,11 +225,8 @@ fn handleLogin(r: zap.Request, allocator: std.mem.Allocator) !void {
         return;
     }
 
-    // Create session
-    var session_store = zigauth.storage.memory.MemoryStore.init(allocator);
-    defer session_store.deinit();
-    const store = session_store.store();
-
+    // Create session using global store
+    const store = global_session_store.?.store();
     const session = try store.create(allocator, user.id, 3600 * 24); // 24 hour session
     defer {
         var s = session;
@@ -253,47 +245,18 @@ fn handleLogin(r: zap.Request, allocator: std.mem.Allocator) !void {
 }
 
 fn handleProfile(r: zap.Request, allocator: std.mem.Allocator) !void {
-    // Extract session cookie
-    const cookie_header = r.getHeader("cookie") orelse {
+    // Validate session using helper
+    const session_result = try validateSession(r, allocator);
+    if (session_result.session == null) {
         r.setStatus(.unauthorized);
-        try r.sendBody("Unauthorized: No session");
+        try r.sendBody(session_result.error_message orelse "Unauthorized");
         return;
-    };
+    }
 
-    // Parse session_id
-    const session_id = blk: {
-        var it = std.mem.splitSequence(u8, cookie_header, "; ");
-        while (it.next()) |cookie| {
-            if (std.mem.startsWith(u8, cookie, "session_id=")) {
-                break :blk cookie[11..];
-            }
-        }
-        break :blk null;
-    } orelse {
-        r.setStatus(.unauthorized);
-        try r.sendBody("Unauthorized: No session");
-        return;
-    };
-
-    // Validate session
-    var session_store = zigauth.storage.memory.MemoryStore.init(allocator);
-    defer session_store.deinit();
-    const store = session_store.store();
-
-    const session = store.get(allocator, session_id) catch {
-        r.setStatus(.unauthorized);
-        try r.sendBody("Unauthorized: Invalid session");
-        return;
-    };
+    const session = session_result.session.?;
     defer {
         var s = session;
         s.deinit(allocator);
-    }
-
-    if (!session.isValid()) {
-        r.setStatus(.unauthorized);
-        try r.sendBody("Unauthorized: Session expired");
-        return;
     }
 
     // Find user
@@ -334,14 +297,115 @@ fn handleDeletePost(r: zap.Request, _: std.mem.Allocator) !void {
     try r.sendBody("{\"success\":true,\"message\":\"Post deleted\"}");
 }
 
-fn handleAdmin(r: zap.Request, _: std.mem.Allocator) !void {
-    // Would check RBAC for admin permissions
+fn handleAdmin(r: zap.Request, allocator: std.mem.Allocator) !void {
+    // Validate session
+    const session_result = try validateSession(r, allocator);
+    if (session_result.session == null) {
+        r.setStatus(.unauthorized);
+        try r.sendBody(session_result.error_message orelse "Unauthorized");
+        return;
+    }
+
+    const session = session_result.session.?;
+    defer {
+        var s = session;
+        s.deinit(allocator);
+    }
+
+    // Check admin permissions
+    if (!global_rbac.?.userHasPermission(session.user_id, "*")) {
+        r.setStatus(.forbidden);
+        try r.sendBody("Forbidden: Admin access required");
+        return;
+    }
+
     try r.setHeader("Content-Type", "text/html");
     try r.sendBody("<h1>Admin Panel</h1><p>Welcome, admin!</p>");
 }
 
 fn handleLogout(r: zap.Request, _: std.mem.Allocator) !void {
+    // Extract session cookie
+    const cookie_header = r.getHeader("cookie") orelse {
+        try r.setHeader("Set-Cookie", "session_id=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0");
+        try r.setHeader("Content-Type", "application/json");
+        try r.sendBody("{\"success\":true,\"message\":\"Logged out\"}");
+        return;
+    };
+
+    // Parse session_id
+    const session_id = blk: {
+        var it = std.mem.splitSequence(u8, cookie_header, "; ");
+        while (it.next()) |cookie| {
+            if (std.mem.startsWith(u8, cookie, "session_id=")) {
+                break :blk cookie[11..];
+            }
+        }
+        break :blk null;
+    };
+
+    // Destroy session if exists
+    if (session_id) |sid| {
+        const store = global_session_store.?.store();
+        store.destroy(sid) catch {};
+    }
+
     try r.setHeader("Set-Cookie", "session_id=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0");
     try r.setHeader("Content-Type", "application/json");
     try r.sendBody("{\"success\":true,\"message\":\"Logged out\"}");
+}
+
+// Helper function to validate session from request
+const SessionValidationResult = struct {
+    session: ?zigauth.auth.session.Session,
+    error_message: ?[]const u8,
+};
+
+fn validateSession(r: zap.Request, allocator: std.mem.Allocator) !SessionValidationResult {
+    // Extract session cookie
+    const cookie_header = r.getHeader("cookie") orelse {
+        return .{
+            .session = null,
+            .error_message = "Unauthorized: No session cookie",
+        };
+    };
+
+    // Parse session_id
+    const session_id = blk: {
+        var it = std.mem.splitSequence(u8, cookie_header, "; ");
+        while (it.next()) |cookie| {
+            if (std.mem.startsWith(u8, cookie, "session_id=")) {
+                break :blk cookie[11..];
+            }
+        }
+        break :blk null;
+    } orelse {
+        return .{
+            .session = null,
+            .error_message = "Unauthorized: No session ID in cookie",
+        };
+    };
+
+    // Get session from store
+    const store = global_session_store.?.store();
+    const session = store.get(allocator, session_id) catch {
+        return .{
+            .session = null,
+            .error_message = "Unauthorized: Invalid session",
+        };
+    };
+
+    // Check if session is valid (not expired)
+    if (!session.isValid()) {
+        var s = session;
+        s.deinit(allocator);
+        return .{
+            .session = null,
+            .error_message = "Unauthorized: Session expired",
+        };
+    }
+
+    return .{
+        .session = session,
+        .error_message = null,
+    };
 }
