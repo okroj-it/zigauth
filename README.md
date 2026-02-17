@@ -276,8 +276,13 @@ zig build example-password
 zig build example-jwt
 zig build example-session
 zig build example-rbac
-zig build example-zigzap  # Web server demo
+zig build example-zigzap  # Zigzap web server demo (port 3000)
+zig build example-httpz   # http.zig web server demo (port 3001)
 zig build example  # Run all examples
+
+# Framework integration examples
+See examples/jetzig_usage.md  # Jetzig integration guide
+See examples/tokamak_usage.md # Tokamak integration guide
 ```
 
 ## 🗺️ Roadmap
