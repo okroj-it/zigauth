@@ -121,6 +121,7 @@ fn extractCookie(cookies: []const u8, name: []const u8) ?[]const u8 {
 }
 
 /// Helper: Build Set-Cookie header value
+/// Caller owns returned memory and must free it
 pub fn buildSetCookie(
     allocator: std.mem.Allocator,
     name: []const u8,
@@ -130,7 +131,17 @@ pub fn buildSetCookie(
     secure: bool,
     same_site: []const u8,
 ) ![]const u8 {
+    // SECURITY: Validate input sizes to prevent excessive allocation
+    const MAX_COOKIE_NAME_LEN = 256;
+    const MAX_COOKIE_VALUE_LEN = 4096;
+    const MAX_SAME_SITE_LEN = 16;
+
+    if (name.len > MAX_COOKIE_NAME_LEN) return error.CookieNameTooLong;
+    if (value.len > MAX_COOKIE_VALUE_LEN) return error.CookieValueTooLong;
+    if (same_site.len > MAX_SAME_SITE_LEN) return error.SameSiteTooLong;
+
     var buf = std.ArrayList(u8).init(allocator);
+    defer buf.deinit();
     const writer = buf.writer();
 
     try writer.print("{s}={s}", .{ name, value });

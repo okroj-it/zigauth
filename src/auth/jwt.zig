@@ -100,63 +100,35 @@ pub fn sign(
     );
     defer allocator.free(header_json);
 
-    // Serialize claims to JSON
+    // SECURITY FIX: Serialize claims to JSON using incremental building
+    // instead of deeply nested if/else blocks (LLM anti-pattern)
     const claims_json = blk: {
+        var buf: std.ArrayListUnmanaged(u8) = .empty;
+        defer buf.deinit(allocator);
+        const writer = buf.writer(allocator);
+
+        // Start JSON object with required fields
+        try writer.print("{{\"sub\":\"{s}\",\"exp\":{d},\"iat\":{d}", .{
+            claims.sub,
+            claims.exp,
+            claims.iat,
+        });
+
+        // Append optional fields if present
         if (claims.iss) |iss| {
-            if (claims.aud) |aud| {
-                if (claims.jti) |jti| {
-                    break :blk try std.fmt.allocPrint(
-                        allocator,
-                        "{{\"sub\":\"{s}\",\"exp\":{d},\"iat\":{d},\"iss\":\"{s}\",\"aud\":\"{s}\",\"jti\":\"{s}\"}}",
-                        .{ claims.sub, claims.exp, claims.iat, iss, aud, jti },
-                    );
-                } else {
-                    break :blk try std.fmt.allocPrint(
-                        allocator,
-                        "{{\"sub\":\"{s}\",\"exp\":{d},\"iat\":{d},\"iss\":\"{s}\",\"aud\":\"{s}\"}}",
-                        .{ claims.sub, claims.exp, claims.iat, iss, aud },
-                    );
-                }
-            } else if (claims.jti) |jti| {
-                break :blk try std.fmt.allocPrint(
-                    allocator,
-                    "{{\"sub\":\"{s}\",\"exp\":{d},\"iat\":{d},\"iss\":\"{s}\",\"jti\":\"{s}\"}}",
-                    .{ claims.sub, claims.exp, claims.iat, iss, jti },
-                );
-            } else {
-                break :blk try std.fmt.allocPrint(
-                    allocator,
-                    "{{\"sub\":\"{s}\",\"exp\":{d},\"iat\":{d},\"iss\":\"{s}\"}}",
-                    .{ claims.sub, claims.exp, claims.iat, iss },
-                );
-            }
-        } else if (claims.aud) |aud| {
-            if (claims.jti) |jti| {
-                break :blk try std.fmt.allocPrint(
-                    allocator,
-                    "{{\"sub\":\"{s}\",\"exp\":{d},\"iat\":{d},\"aud\":\"{s}\",\"jti\":\"{s}\"}}",
-                    .{ claims.sub, claims.exp, claims.iat, aud, jti },
-                );
-            } else {
-                break :blk try std.fmt.allocPrint(
-                    allocator,
-                    "{{\"sub\":\"{s}\",\"exp\":{d},\"iat\":{d},\"aud\":\"{s}\"}}",
-                    .{ claims.sub, claims.exp, claims.iat, aud },
-                );
-            }
-        } else if (claims.jti) |jti| {
-            break :blk try std.fmt.allocPrint(
-                allocator,
-                "{{\"sub\":\"{s}\",\"exp\":{d},\"iat\":{d},\"jti\":\"{s}\"}}",
-                .{ claims.sub, claims.exp, claims.iat, jti },
-            );
-        } else {
-            break :blk try std.fmt.allocPrint(
-                allocator,
-                "{{\"sub\":\"{s}\",\"exp\":{d},\"iat\":{d}}}",
-                .{ claims.sub, claims.exp, claims.iat },
-            );
+            try writer.print(",\"iss\":\"{s}\"", .{iss});
         }
+        if (claims.aud) |aud| {
+            try writer.print(",\"aud\":\"{s}\"", .{aud});
+        }
+        if (claims.jti) |jti| {
+            try writer.print(",\"jti\":\"{s}\"", .{jti});
+        }
+
+        // Close JSON object
+        try writer.writeByte('}');
+
+        break :blk try buf.toOwnedSlice(allocator);
     };
     defer allocator.free(claims_json);
 
@@ -216,8 +188,29 @@ pub fn verify(
     const expected_signature = try signHmacSha256(allocator, signing_input, secret);
     defer allocator.free(expected_signature);
 
-    // Constant-time comparison
-    if (!mem.eql(u8, signature_b64, expected_signature)) {
+    // SECURITY: Constant-time comparison to prevent timing attacks
+    // Using same pattern as CSRF validation
+    const length_match: u8 = if (signature_b64.len == expected_signature.len) 0 else 1;
+    const min_len = @min(signature_b64.len, expected_signature.len);
+
+    var diff: u8 = 0;
+    for (0..min_len) |i| {
+        diff |= signature_b64[i] ^ expected_signature[i];
+    }
+
+    // XOR remaining bytes to maintain constant time
+    if (signature_b64.len > min_len) {
+        for (min_len..signature_b64.len) |i| {
+            diff |= signature_b64[i] ^ signature_b64[i];
+        }
+    }
+    if (expected_signature.len > min_len) {
+        for (min_len..expected_signature.len) |i| {
+            diff |= expected_signature[i] ^ expected_signature[i];
+        }
+    }
+
+    if ((length_match | diff) != 0) {
         return Error.InvalidSignature;
     }
 

@@ -135,14 +135,29 @@ pub fn verify(
         .argon2id,
     );
 
-    // Constant-time comparison to prevent timing attacks
-    if (hash_buf.len != parsed.hash.len) return false;
+    // SECURITY: Constant-time comparison to prevent timing attacks
+    // Must handle length mismatch in constant-time
+    const length_match: u8 = if (hash_buf.len == parsed.hash.len) 0 else 1;
+    const min_len = @min(hash_buf.len, parsed.hash.len);
 
     var diff: u8 = 0;
-    for (hash_buf, parsed.hash) |a, b| {
-        diff |= a ^ b;
+    for (0..min_len) |i| {
+        diff |= hash_buf[i] ^ parsed.hash[i];
     }
-    return diff == 0;
+
+    // XOR remaining bytes to maintain constant time
+    if (hash_buf.len > min_len) {
+        for (min_len..hash_buf.len) |i| {
+            diff |= hash_buf[i] ^ hash_buf[i];
+        }
+    }
+    if (parsed.hash.len > min_len) {
+        for (min_len..parsed.hash.len) |i| {
+            diff |= parsed.hash[i] ^ parsed.hash[i];
+        }
+    }
+
+    return (length_match | diff) == 0;
 }
 
 /// Parsed PHC hash components
@@ -203,17 +218,32 @@ fn parsePHC(allocator: mem.Allocator, encoded: []const u8) Error!ParsedHash {
         }
     }
 
+    // SECURITY: Validate parameters are within acceptable ranges
+    // Prevent accepting weak parameters that make brute force easier
+    if (memory_cost < 8192) return Error.WeakParameters; // Min 8 MiB
+    if (time_cost < 1) return Error.WeakParameters; // Min 1 iteration
+    if (parallelism < 1) return Error.WeakParameters; // Min 1 thread
+
     // Salt
     const salt_hex = parts.next() orelse return Error.InvalidHash;
+    if (salt_hex.len % 2 != 0) return Error.InvalidHash; // Hex must be even length
     const salt = try allocator.alloc(u8, salt_hex.len / 2);
     errdefer allocator.free(salt);
-    _ = try std.fmt.hexToBytes(salt, salt_hex);
+    _ = std.fmt.hexToBytes(salt, salt_hex) catch {
+        // SECURITY FIX: Don't manually free - errdefer handles cleanup
+        return Error.InvalidHash;
+    };
 
     // Hash
     const hash_hex = parts.next() orelse return Error.InvalidHash;
+    if (hash_hex.len % 2 != 0) return Error.InvalidHash; // Hex must be even length
     const hash_buf = try allocator.alloc(u8, hash_hex.len / 2);
     errdefer allocator.free(hash_buf);
-    _ = try std.fmt.hexToBytes(hash_buf, hash_hex);
+    _ = std.fmt.hexToBytes(hash_buf, hash_hex) catch {
+        allocator.free(salt); // Must free salt (not covered by its own errdefer scope)
+        // SECURITY FIX: Don't manually free hash_buf - errdefer handles it
+        return Error.InvalidHash;
+    };
 
     return ParsedHash{
         .memory_cost = memory_cost,

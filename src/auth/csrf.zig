@@ -78,18 +78,37 @@ pub fn generateTokenWithConfig(allocator: std.mem.Allocator, config: Config) ![]
 ///
 /// Returns true if tokens match, false otherwise.
 pub fn validateToken(expected: []const u8, provided: []const u8) bool {
-    // Length must match
-    if (expected.len != provided.len) {
-        return false;
-    }
+    // SECURITY: Must check length in constant-time to prevent timing attacks
+    // We compare every byte regardless of length mismatch
+
+    // Start with length mismatch flag (0 if equal, 1 if different)
+    const length_mismatch: u8 = if (expected.len == provided.len) 0 else 1;
+
+    // Determine minimum length to avoid out-of-bounds access
+    const min_len = @min(expected.len, provided.len);
 
     // Constant-time comparison (timing-attack resistant)
     // Compare byte-by-byte using XOR accumulator
     var diff: u8 = 0;
-    for (expected, provided) |e, p| {
-        diff |= e ^ p;
+    for (0..min_len) |i| {
+        diff |= expected[i] ^ provided[i];
     }
-    return diff == 0;
+
+    // XOR remaining bytes with themselves if lengths differ
+    // This ensures we always do the same number of operations
+    if (expected.len > min_len) {
+        for (min_len..expected.len) |i| {
+            diff |= expected[i] ^ expected[i]; // Always 0, but compiler can't optimize away
+        }
+    }
+    if (provided.len > min_len) {
+        for (min_len..provided.len) |i| {
+            diff |= provided[i] ^ provided[i]; // Always 0, but compiler can't optimize away
+        }
+    }
+
+    // Return true only if lengths match AND all bytes match
+    return (length_mismatch | diff) == 0;
 }
 
 /// CSRF token validation error

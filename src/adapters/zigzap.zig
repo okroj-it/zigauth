@@ -357,17 +357,32 @@ fn extractBearerToken(r: zap.Request) ?[]const u8 {
 }
 
 /// Helper: Build Set-Cookie header value
+/// Caller owns returned memory and must free it
 pub fn buildSetCookie(
+    allocator: std.mem.Allocator,
     name: []const u8,
     value: []const u8,
     max_age: ?i64,
     http_only: bool,
     secure: bool,
     same_site: []const u8,
-) ![]const u8 {
-    var buf: [4096]u8 = undefined;
-    var stream = std.io.fixedBufferStream(&buf);
-    const writer = stream.writer();
+) ![]u8 {
+    // SECURITY FIX: Use dynamic allocation instead of fixed buffer
+    // to prevent buffer overflow and use-after-free bugs
+
+    // Validate input sizes to prevent excessive allocation
+    const MAX_COOKIE_NAME_LEN = 256;
+    const MAX_COOKIE_VALUE_LEN = 4096;
+    const MAX_SAME_SITE_LEN = 16;
+
+    if (name.len > MAX_COOKIE_NAME_LEN) return error.CookieNameTooLong;
+    if (value.len > MAX_COOKIE_VALUE_LEN) return error.CookieValueTooLong;
+    if (same_site.len > MAX_SAME_SITE_LEN) return error.SameSiteTooLong;
+
+    var parts = std.ArrayList(u8).init(allocator);
+    defer parts.deinit();
+
+    const writer = parts.writer();
 
     try writer.print("{s}={s}", .{ name, value });
 
@@ -386,5 +401,5 @@ pub fn buildSetCookie(
     try writer.print("; SameSite={s}", .{same_site});
     try writer.writeAll("; Path=/");
 
-    return stream.getWritten();
+    return parts.toOwnedSlice();
 }

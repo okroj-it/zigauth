@@ -69,13 +69,24 @@ pub const MemoryStore = struct {
 
         // Generate CSRF token for this session
         const csrf_token = try csrf.generateToken(self.allocator);
-        errdefer self.allocator.free(csrf_token);
+        errdefer {
+            self.allocator.free(csrf_token);
+            self.allocator.free(session_id); // SECURITY: Also free session_id on error
+        }
+
+        // Duplicate user_id
+        const user_id_copy = try self.allocator.dupe(u8, user_id);
+        errdefer {
+            self.allocator.free(user_id_copy);
+            self.allocator.free(csrf_token);
+            self.allocator.free(session_id);
+        }
 
         // Create session
         const data = std.StringHashMap([]const u8).init(self.allocator);
         const new_session = Session{
             .id = session_id,
-            .user_id = try self.allocator.dupe(u8, user_id),
+            .user_id = user_id_copy,
             .data = data,
             .created_at = now,
             .expires_at = now + ttl,
@@ -86,12 +97,21 @@ pub const MemoryStore = struct {
         // Store session
         // IMPORTANT: Use self.allocator to allocate key so it can be freed with self.allocator in destroy()
         const key = try self.allocator.dupe(u8, session_id);
+        errdefer {
+            self.allocator.free(key);
+            // If put() fails, we need to clean up the entire session
+            var cleanup_session = new_session;
+            cleanup_session.deinit(self.allocator);
+        }
+
         try self.sessions.put(key, .{
             .session = new_session,
             .owned = true,
         });
 
         // Return a copy for the caller
+        // IMPORTANT: If any of these allocations fail, the session is already stored
+        // in the HashMap, so we don't need to clean it up (it will be cleaned up on deinit)
         return Session{
             .id = try allocator.dupe(u8, new_session.id),
             .user_id = try allocator.dupe(u8, new_session.user_id),
