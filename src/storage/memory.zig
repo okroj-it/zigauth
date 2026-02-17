@@ -3,6 +3,7 @@ const mem = std.mem;
 const session_mod = @import("../auth/session.zig");
 const Session = session_mod.Session;
 const SessionError = session_mod.Error;
+const csrf = @import("../auth/csrf.zig");
 
 /// Thread-safe in-memory session storage
 pub const MemoryStore = struct {
@@ -66,6 +67,10 @@ pub const MemoryStore = struct {
 
         const now = std.time.timestamp();
 
+        // Generate CSRF token for this session
+        const csrf_token = try csrf.generateToken(self.allocator);
+        errdefer self.allocator.free(csrf_token);
+
         // Create session
         const data = std.StringHashMap([]const u8).init(self.allocator);
         const new_session = Session{
@@ -75,6 +80,7 @@ pub const MemoryStore = struct {
             .created_at = now,
             .expires_at = now + ttl,
             .last_accessed = now,
+            .csrf_token = csrf_token,
         };
 
         // Store session
@@ -93,6 +99,7 @@ pub const MemoryStore = struct {
             .created_at = new_session.created_at,
             .expires_at = new_session.expires_at,
             .last_accessed = new_session.last_accessed,
+            .csrf_token = if (new_session.csrf_token) |token| try allocator.dupe(u8, token) else null,
         };
     }
 
@@ -116,6 +123,7 @@ pub const MemoryStore = struct {
             .created_at = entry.session.created_at,
             .expires_at = entry.session.expires_at,
             .last_accessed = entry.session.last_accessed,
+            .csrf_token = if (entry.session.csrf_token) |token| try allocator.dupe(u8, token) else null,
         };
     }
 

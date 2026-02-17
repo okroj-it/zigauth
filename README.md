@@ -18,6 +18,7 @@ ZigAuth is the first comprehensive authentication and authorization framework fo
 - 🎫 **JWT Tokens**: HMAC-SHA256 signing, verification, refresh tokens ✅
 - 📝 **Sessions**: Memory storage with cookie support, thread-safe operations ✅
 - 👥 **RBAC**: Role-Based Access Control with permission wildcards ✅
+- 🛡️ **CSRF Protection**: Synchronizer tokens, constant-time validation, auto-generation ✅
 - 🔌 **Framework Adapters**: Zigzap ✅ | http.zig ✅ | Jetzig ✅ | Tokamak ✅
 
 ## 📦 Installation
@@ -200,6 +201,76 @@ if (rbac.userHasAllPermissions("user_123", &required)) {
 }
 ```
 
+### CSRF Protection
+
+```zig
+const zigauth = @import("zigauth");
+
+// CSRF tokens are automatically generated for each session
+var store = zigauth.storage.memory.MemoryStore.init(allocator);
+defer store.deinit();
+
+const store_interface = store.store();
+
+// Create session - CSRF token generated automatically
+const session = try store_interface.create(allocator, "user_123", 3600);
+defer {
+    var s = session;
+    s.deinit(allocator);
+}
+
+// Get CSRF token for forms
+const csrf_token = session.csrf_token.?;
+
+// In your HTML template:
+// <input type="hidden" name="csrf_token" value="{csrf_token}">
+
+// Validate CSRF token on form submission
+const submitted_token = form_data.get("csrf_token");
+try zigauth.auth.csrf.validateTokenOrError(csrf_token, submitted_token);
+
+// Manual token generation (if needed)
+const token = try zigauth.auth.csrf.generateToken(allocator);
+defer allocator.free(token);
+
+// Constant-time validation
+const valid = zigauth.auth.csrf.validateToken(expected, provided);
+```
+
+**Framework Integration:**
+
+```zig
+// Zigzap: CSRF middleware
+const csrf_middleware = zigauth.adapters.zigzap.CsrfMiddleware.init(allocator, .{
+    .store = &session_store,
+    .auto_validate_mutations = true, // Validates POST/PUT/DELETE/PATCH
+});
+
+// http.zig: Validate CSRF helper
+try zigauth.adapters.httpz.validateCsrfToken(
+    allocator,
+    &session_store,
+    req,
+    "session_id",
+    "X-CSRF-Token",
+);
+
+// Jetzig: Get token for templates
+const token = try zigauth.adapters.jetzig.getCsrfToken(
+    allocator,
+    &session_store,
+    cookie_header,
+    "session_id",
+);
+
+// Tokamak: CSRF middleware with DI
+const csrf_mw = zigauth.adapters.tokamak.csrfMiddleware(
+    &session_store,
+    "session_id",
+    "X-CSRF-Token",
+);
+```
+
 ## ✅ Completed Features
 
 **Password Hashing**:
@@ -231,10 +302,21 @@ if (rbac.userHasAllPermissions("user_123", &required)) {
 - [x] Memory-safe role management
 - [x] Permission parsing (`resource:action`)
 
+**CSRF Protection**:
+- [x] Cryptographically secure token generation (32 bytes)
+- [x] Constant-time validation (timing-attack resistant)
+- [x] Automatic token generation on session creation
+- [x] Base64url encoding for URL safety
+- [x] Synchronizer token pattern (session-based)
+- [x] Double-submit cookie pattern support
+- [x] Token extraction from forms/headers
+- [x] Framework adapter integration
+
 **Zigzap Adapter**:
 - [x] Session authentication middleware
 - [x] JWT authentication middleware
 - [x] RBAC authorization middleware
+- [x] CSRF protection middleware
 - [x] Cookie extraction and parsing
 - [x] Bearer token extraction
 - [x] Automatic 401/403 responses
@@ -243,6 +325,7 @@ if (rbac.userHasAllPermissions("user_123", &required)) {
 - [x] Session authentication via dispatch pattern
 - [x] JWT authentication middleware
 - [x] RBAC authorization middleware
+- [x] CSRF validation helpers
 - [x] Cookie and Bearer token helpers
 - [x] Session validation utilities
 
@@ -250,6 +333,7 @@ if (rbac.userHasAllPermissions("user_123", &required)) {
 - [x] Session validation helpers
 - [x] JWT authentication helpers
 - [x] RBAC permission checking
+- [x] CSRF token helpers for templates
 - [x] Login/logout response builders
 - [x] Cookie management utilities
 
@@ -257,11 +341,12 @@ if (rbac.userHasAllPermissions("user_123", &required)) {
 - [x] Session auth middleware with DI
 - [x] JWT auth middleware with Context
 - [x] RBAC auth middleware
+- [x] CSRF protection middleware
 - [x] AuthContext for dependency injection
 - [x] Helper functions for session/cookie handling
 
 **Testing**:
-- [x] 61 comprehensive tests passing
+- [x] 64 comprehensive tests passing
 - [x] No memory leaks
 - [x] **Zero framework dependencies** - use any Zig web framework!
 
@@ -278,6 +363,7 @@ zig build example-password  # Password hashing with Argon2id
 zig build example-jwt       # JWT token generation/verification
 zig build example-session   # Session management
 zig build example-rbac      # Role-based access control
+zig build example-csrf      # CSRF protection
 zig build example           # Run all core examples
 ```
 
@@ -318,7 +404,7 @@ You just need to add your chosen framework to your own `build.zig.zon`.
 - **MFA (Multi-Factor Authentication)**: TOTP, backup codes, SMS/Email codes, WebAuthn/FIDO2, recovery flows
 - **PBAC (Policy-Based Access Control)**: Policy engine, attribute-based rules, dynamic policies, policy composition
 - **ABAC (Attribute-Based Access Control)**: User/resource/environment attributes, relationship rules, fine-grained permissions
-- **CSRF Protection**: Token generation/validation, double-submit cookies, SameSite enforcement
+- ✅ **CSRF Protection**: Token generation/validation, constant-time comparison, synchronizer pattern, framework integration
 - **Rate Limiting**: Token bucket algorithm, sliding window, per-user limits, IP-based limits
 
 ### Phase 3: Framework Integrations ✅ COMPLETE

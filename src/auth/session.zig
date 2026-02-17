@@ -10,10 +10,16 @@ pub const Session = struct {
     created_at: i64,
     expires_at: i64,
     last_accessed: i64,
+    /// CSRF token for this session (optional, but recommended)
+    csrf_token: ?[]const u8 = null,
 
     pub fn deinit(self: *Session, allocator: mem.Allocator) void {
         allocator.free(self.id);
         allocator.free(self.user_id);
+
+        if (self.csrf_token) |token| {
+            allocator.free(token);
+        }
 
         var iter = self.data.iterator();
         while (iter.next()) |entry| {

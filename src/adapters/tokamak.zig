@@ -276,3 +276,99 @@ pub fn createSessionCookie(
         "Lax",
     );
 }
+
+/// CSRF protection middleware for Tokamak
+/// Validates CSRF tokens on state-changing requests (POST, PUT, DELETE, PATCH)
+pub fn csrfMiddleware(
+    store: *zigauth.storage.memory.MemoryStore.Store,
+    session_cookie_name: []const u8,
+    csrf_header_name: []const u8,
+) type {
+    return struct {
+        store: *zigauth.storage.memory.MemoryStore.Store,
+        session_cookie_name: []const u8,
+        csrf_header_name: []const u8,
+
+        const Self = @This();
+
+        pub fn init() Self {
+            return .{
+                .store = store,
+                .session_cookie_name = session_cookie_name,
+                .csrf_header_name = csrf_header_name,
+            };
+        }
+
+        /// Middleware handler - validates CSRF on mutations
+        pub fn handle(self: Self, ctx: anytype) !void {
+            const allocator = ctx.allocator();
+
+            // Only validate on state-changing methods
+            const method = ctx.method();
+            const should_validate = std.mem.eql(u8, method, "POST") or
+                std.mem.eql(u8, method, "PUT") or
+                std.mem.eql(u8, method, "DELETE") or
+                std.mem.eql(u8, method, "PATCH");
+
+            if (!should_validate) {
+                return ctx.next();
+            }
+
+            // Validate CSRF token
+            try self.validateCsrf(ctx, allocator);
+
+            return ctx.next();
+        }
+
+        fn validateCsrf(self: Self, ctx: anytype, allocator: std.mem.Allocator) !void {
+            // Extract session ID from cookie
+            const cookie_header = ctx.header("Cookie") orelse return error.NoCookies;
+            const session_id = extractCookie(cookie_header, self.session_cookie_name) orelse
+                return error.SessionNotFound;
+
+            // Get session from store
+            const session = try self.store.get(allocator, session_id);
+            defer {
+                var s = session;
+                s.deinit(allocator);
+            }
+
+            // Get expected CSRF token from session
+            const expected_token = session.csrf_token orelse
+                return error.MissingCsrfToken;
+
+            // Try to extract CSRF token from request header
+            const provided_token = ctx.header(self.csrf_header_name);
+
+            // Validate token using constant-time comparison
+            const csrf = zigauth.auth.csrf;
+            try csrf.validateTokenOrError(expected_token, provided_token);
+        }
+    };
+}
+
+/// Helper: Get CSRF token from session (for templates)
+///
+/// Caller owns returned memory and must free it.
+pub fn getCsrfToken(
+    allocator: std.mem.Allocator,
+    store: *zigauth.storage.memory.MemoryStore.Store,
+    cookie_header: ?[]const u8,
+    cookie_name: []const u8,
+) !?[]const u8 {
+    const cookies = cookie_header orelse return null;
+
+    const session_id = extractCookie(cookies, cookie_name) orelse return null;
+
+    const session = try store.get(allocator, session_id);
+    defer {
+        var s = session;
+        s.deinit(allocator);
+    }
+
+    if (session.csrf_token) |token| {
+        return try allocator.dupe(u8, token);
+    }
+
+    return null;
+}

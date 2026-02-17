@@ -204,3 +204,87 @@ pub fn createLogoutResponse(
         "Lax",
     );
 }
+
+/// Get CSRF token from session for use in templates
+///
+/// Returns the CSRF token that should be included in forms.
+/// Caller owns returned memory and must free it.
+pub fn getCsrfToken(
+    allocator: std.mem.Allocator,
+    store: *zigauth.storage.memory.MemoryStore.Store,
+    cookie_header: ?[]const u8,
+    cookie_name: []const u8,
+) !?[]const u8 {
+    const cookies = cookie_header orelse return null;
+
+    const session_id = extractCookie(cookies, cookie_name) orelse return null;
+
+    const session = store.get(allocator, session_id) catch return null;
+    defer {
+        var s = session;
+        s.deinit(allocator);
+    }
+
+    if (session.csrf_token) |token| {
+        return try allocator.dupe(u8, token);
+    }
+
+    return null;
+}
+
+/// Validate CSRF token from form submission
+///
+/// Compares provided token against session's CSRF token.
+/// Returns error if token is missing or invalid.
+pub fn validateCsrfToken(
+    allocator: std.mem.Allocator,
+    store: *zigauth.storage.memory.MemoryStore.Store,
+    cookie_header: ?[]const u8,
+    cookie_name: []const u8,
+    provided_token: ?[]const u8,
+) !void {
+    const cookies = cookie_header orelse return error.NoCookies;
+
+    const session_id = extractCookie(cookies, cookie_name) orelse
+        return error.SessionNotFound;
+
+    const session = try store.get(allocator, session_id);
+    defer {
+        var s = session;
+        s.deinit(allocator);
+    }
+
+    const expected_token = session.csrf_token orelse
+        return error.MissingCsrfToken;
+
+    const csrf = zigauth.auth.csrf;
+    try csrf.validateTokenOrError(expected_token, provided_token);
+}
+
+/// CSRF validation result for templates
+pub const CsrfValidation = struct {
+    valid: bool,
+    error_message: ?[]const u8 = null,
+};
+
+/// Validate CSRF and return result (for use in handlers)
+pub fn checkCsrfToken(
+    allocator: std.mem.Allocator,
+    store: *zigauth.storage.memory.MemoryStore.Store,
+    cookie_header: ?[]const u8,
+    cookie_name: []const u8,
+    provided_token: ?[]const u8,
+) CsrfValidation {
+    validateCsrfToken(allocator, store, cookie_header, cookie_name, provided_token) catch |err| {
+        const message = switch (err) {
+            error.NoCookies => "No cookies provided",
+            error.SessionNotFound => "Session not found",
+            error.MissingCsrfToken => "CSRF token missing",
+            error.InvalidCsrfToken => "Invalid CSRF token",
+            else => "CSRF validation failed",
+        };
+        return .{ .valid = false, .error_message = message };
+    };
+
+    return .{ .valid = true };
+}

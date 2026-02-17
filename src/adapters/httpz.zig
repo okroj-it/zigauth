@@ -291,3 +291,75 @@ pub fn validateSessionCookie(
     // IMPORTANT: Return a copy since the session will be freed by defer
     return try allocator.dupe(u8, session.user_id);
 }
+
+/// Helper: Validate CSRF token from request
+///
+/// Extracts CSRF token from request header or query parameters,
+/// compares it against the session's CSRF token using constant-time comparison.
+///
+/// Returns error if token is missing or invalid.
+pub fn validateCsrfToken(
+    allocator: std.mem.Allocator,
+    store: *zigauth.storage.memory.MemoryStore,
+    req: *httpz.Request,
+    session_cookie_name: []const u8,
+    csrf_header_name: []const u8,
+) !void {
+    // Extract session ID from cookie
+    const session_id = extractCookie(req, session_cookie_name) orelse
+        return error.SessionNotFound;
+
+    // Get session from store
+    const store_interface = store.store();
+    const session = try store_interface.get(allocator, session_id);
+    defer {
+        var s = session;
+        s.deinit(allocator);
+    }
+
+    // Get expected CSRF token from session
+    const expected_token = session.csrf_token orelse
+        return error.MissingCsrfToken;
+
+    // Try to extract CSRF token from request header
+    var provided_token: ?[]const u8 = req.header(csrf_header_name);
+
+    // If not in header, try query parameters
+    if (provided_token == null) {
+        if (req.query()) |query| {
+            provided_token = zigauth.auth.csrf.extractTokenFromParams(query);
+        }
+    }
+
+    // Validate token using constant-time comparison
+    const csrf = zigauth.auth.csrf;
+    try csrf.validateTokenOrError(expected_token, provided_token);
+}
+
+/// Helper: Get CSRF token from session
+///
+/// Retrieves the CSRF token for the current session.
+/// Useful for including in templates/responses.
+///
+/// Caller owns returned memory and must free it.
+pub fn getCsrfToken(
+    allocator: std.mem.Allocator,
+    store: *zigauth.storage.memory.MemoryStore,
+    req: *httpz.Request,
+    session_cookie_name: []const u8,
+) !?[]const u8 {
+    const session_id = extractCookie(req, session_cookie_name) orelse return null;
+
+    const store_interface = store.store();
+    const session = try store_interface.get(allocator, session_id);
+    defer {
+        var s = session;
+        s.deinit(allocator);
+    }
+
+    if (session.csrf_token) |token| {
+        return try allocator.dupe(u8, token);
+    }
+
+    return null;
+}

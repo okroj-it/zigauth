@@ -5,6 +5,7 @@ pub const auth = struct {
     pub const password = @import("auth/password.zig");
     pub const session = @import("auth/session.zig");
     pub const jwt = @import("auth/jwt.zig");
+    pub const csrf = @import("auth/csrf.zig");
 };
 
 pub const authz = struct {

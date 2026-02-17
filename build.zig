@@ -69,12 +69,25 @@ pub fn build(b: *std.Build) void {
     });
     const run_rbac_tests = b.addRunArtifact(rbac_tests);
 
+    const csrf_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/csrf_test.zig"),
+            .target = t,
+            .optimize = o,
+            .imports = &.{
+                .{ .name = "zigauth", .module = zigauth_mod },
+            },
+        }),
+    });
+    const run_csrf_tests = b.addRunArtifact(csrf_tests);
+
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
     test_step.dependOn(&run_auth_tests.step);
     test_step.dependOn(&run_jwt_tests.step);
     test_step.dependOn(&run_session_tests.step);
     test_step.dependOn(&run_rbac_tests.step);
+    test_step.dependOn(&run_csrf_tests.step);
 
     // Example executables
     const password_example = b.addExecutable(.{
@@ -129,6 +142,19 @@ pub fn build(b: *std.Build) void {
     });
     b.installArtifact(rbac_example);
 
+    const csrf_example = b.addExecutable(.{
+        .name = "basic_csrf",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/basic_csrf.zig"),
+            .target = t,
+            .optimize = o,
+            .imports = &.{
+                .{ .name = "zigauth", .module = zigauth_mod },
+            },
+        }),
+    });
+    b.installArtifact(csrf_example);
+
     const run_password_example = b.addRunArtifact(password_example);
     const password_example_step = b.step("example-password", "Run basic password example");
     password_example_step.dependOn(&run_password_example.step);
@@ -145,10 +171,15 @@ pub fn build(b: *std.Build) void {
     const rbac_example_step = b.step("example-rbac", "Run basic RBAC example");
     rbac_example_step.dependOn(&run_rbac_example.step);
 
+    const run_csrf_example = b.addRunArtifact(csrf_example);
+    const csrf_example_step = b.step("example-csrf", "Run basic CSRF example");
+    csrf_example_step.dependOn(&run_csrf_example.step);
+
     // Run all core examples (no framework dependencies required)
     const example_step = b.step("example", "Run all core examples");
     example_step.dependOn(&run_password_example.step);
     example_step.dependOn(&run_jwt_example.step);
     example_step.dependOn(&run_session_example.step);
     example_step.dependOn(&run_rbac_example.step);
+    example_step.dependOn(&run_csrf_example.step);
 }
