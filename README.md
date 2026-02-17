@@ -7,15 +7,15 @@
 
 ## 🚀 Status
 
-**Current Version**: v0.1.0-dev
-**Phase**: Foundation - Password Hashing ✅
+**Current Version**: v0.2.0-dev
+**Phase**: Foundation - Password Hashing ✅ | JWT Tokens ✅
 
 ## 🎯 What is ZigAuth?
 
 ZigAuth is the first comprehensive authentication and authorization framework for Zig. It fills the #1 gap in the Zig ecosystem by providing:
 
-- 🔐 **Password Hashing**: Argon2id with OWASP-recommended settings
-- 🎫 **JWT Tokens**: Access + refresh with rotation (Coming soon)
+- 🔐 **Password Hashing**: Argon2id with OWASP-recommended settings ✅
+- 🎫 **JWT Tokens**: HMAC-SHA256 signing, verification, refresh tokens ✅
 - 📝 **Sessions**: Memory and Redis backends (Coming soon)
 - 👥 **RBAC**: Role-Based Access Control with comptime validation (Planned)
 - 🔌 **Framework Adapters**: Zigzap, http.zig, Jetzig, Tokamak (Planned)
@@ -38,57 +38,88 @@ Add to your `build.zig.zon`:
 ### Password Hashing
 
 ```zig
-const std = @import("std");
 const zigauth = @import("zigauth");
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+// Hash a password
+const hashed = try zigauth.auth.password.hash(
+    allocator,
+    "my_secure_password",
+    zigauth.auth.password.default_config,
+);
+defer allocator.free(hashed);
 
-    // Hash a password
-    const password = "my_secure_password";
-    const hashed = try zigauth.auth.password.hash(
-        allocator,
-        password,
-        zigauth.auth.password.default_config,
-    );
-    defer allocator.free(hashed);
+// Verify password
+const valid = try zigauth.auth.password.verify(
+    allocator,
+    "my_secure_password",
+    hashed,
+);
+```
 
-    std.debug.print("Hashed: {s}\n", .{hashed});
+### JWT Tokens
 
-    // Verify password
-    const valid = try zigauth.auth.password.verify(
-        allocator,
-        password,
-        hashed,
-    );
+```zig
+const zigauth = @import("zigauth");
+const jwt = zigauth.auth.jwt;
 
-    std.debug.print("Valid: {}\n", .{valid});
-}
+// Create claims
+const claims = jwt.Claims{
+    .sub = "user_12345",
+    .exp = std.time.timestamp() + 3600, // 1 hour
+    .iat = std.time.timestamp(),
+};
+
+// Sign token
+const token = try jwt.sign(allocator, claims, secret, .hs256);
+defer token.deinit(allocator);
+
+// Verify token
+const verified = try jwt.verify(allocator, token.raw, secret);
+defer jwt.freeClaims(allocator, verified);
+
+// Generate refresh token
+const refresh = try jwt.generateRefreshToken(allocator);
+defer allocator.free(refresh);
 ```
 
 ## ✅ Completed Features
 
-- [x] Project structure created
-- [x] Password hashing implemented (Argon2id)
-- [x] PHC string format encoding/decoding
-- [x] Timing-safe password verification
-- [x] Comprehensive test suite (11 tests)
-- [x] Fast hashing for testing
+**Password Hashing**:
+- [x] Argon2id with OWASP settings
+- [x] PHC format encoding/decoding
+- [x] Timing-safe verification
+- [x] Fast mode for testing
 
-## 🧪 Testing
+**JWT Tokens**:
+- [x] HMAC-SHA256 signing
+- [x] Token verification
+- [x] Claims validation (exp, iat)
+- [x] Refresh token generation
+- [x] Base64url encoding
+
+**Testing**:
+- [x] 21 comprehensive tests passing
+- [x] No memory leaks
+- [x] Zero external dependencies
+
+## 🧪 Testing & Examples
 
 ```bash
-cd zigauth
+# Run all tests
 zig build test
+
+# Run examples
+zig build example-password
+zig build example-jwt
+zig build example  # Run all examples
 ```
 
 ## 🗺️ Roadmap
 
 ### Phase 1: Foundation
 - ✅ Password hashing
-- 🚧 JWT + Sessions
+- ✅ JWT tokens
+- 🚧 Sessions
 - 🚧 RBAC
 - 🚧 Zigzap adapter
 

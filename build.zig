@@ -33,12 +33,25 @@ pub fn build(b: *std.Build) void {
     });
     const run_auth_tests = b.addRunArtifact(auth_tests);
 
+    const jwt_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/jwt_test.zig"),
+            .target = t,
+            .optimize = o,
+            .imports = &.{
+                .{ .name = "zigauth", .module = zigauth_mod },
+            },
+        }),
+    });
+    const run_jwt_tests = b.addRunArtifact(jwt_tests);
+
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
     test_step.dependOn(&run_auth_tests.step);
+    test_step.dependOn(&run_jwt_tests.step);
 
-    // Example executable
-    const example = b.addExecutable(.{
+    // Example executables
+    const password_example = b.addExecutable(.{
         .name = "basic_password",
         .root_module = b.createModule(.{
             .root_source_file = b.path("examples/basic_password.zig"),
@@ -49,9 +62,30 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    b.installArtifact(example);
+    b.installArtifact(password_example);
 
-    const run_example = b.addRunArtifact(example);
-    const example_step = b.step("example", "Run basic password example");
-    example_step.dependOn(&run_example.step);
+    const jwt_example = b.addExecutable(.{
+        .name = "basic_jwt",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/basic_jwt.zig"),
+            .target = t,
+            .optimize = o,
+            .imports = &.{
+                .{ .name = "zigauth", .module = zigauth_mod },
+            },
+        }),
+    });
+    b.installArtifact(jwt_example);
+
+    const run_password_example = b.addRunArtifact(password_example);
+    const password_example_step = b.step("example-password", "Run basic password example");
+    password_example_step.dependOn(&run_password_example.step);
+
+    const run_jwt_example = b.addRunArtifact(jwt_example);
+    const jwt_example_step = b.step("example-jwt", "Run basic JWT example");
+    jwt_example_step.dependOn(&run_jwt_example.step);
+
+    const example_step = b.step("example", "Run all examples");
+    example_step.dependOn(&run_password_example.step);
+    example_step.dependOn(&run_jwt_example.step);
 }
