@@ -137,6 +137,14 @@ pub const RBAC = struct {
             entry.value_ptr.* = .empty;
         }
 
+        // SECURITY: Check for duplicate before adding to prevent memory leaks
+        // and performance degradation from duplicate role entries
+        for (entry.value_ptr.items) |existing_role| {
+            if (mem.eql(u8, existing_role, role_name)) {
+                return; // Already assigned, no-op
+            }
+        }
+
         const role_copy = try self.allocator.dupe(u8, role_name);
         try entry.value_ptr.append(self.allocator, role_copy);
     }

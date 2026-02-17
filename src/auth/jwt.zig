@@ -177,6 +177,20 @@ pub fn verify(
     // Check no extra parts
     if (parts_iter.next() != null) return Error.InvalidFormat;
 
+    // SECURITY: Decode and validate header algorithm.
+    // Reject tokens with "alg": "none" or unsupported algorithms.
+    const header_json = try base64url.decode(allocator, header_b64);
+    defer allocator.free(header_json);
+
+    const parsed_header = std.json.parseFromSlice(Header, allocator, header_json, .{}) catch {
+        return Error.InvalidFormat;
+    };
+    defer parsed_header.deinit();
+
+    if (!mem.eql(u8, parsed_header.value.alg, "HS256")) {
+        return Error.InvalidAlgorithm;
+    }
+
     // Verify signature
     const signing_input = try std.fmt.allocPrint(
         allocator,

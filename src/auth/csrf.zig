@@ -78,6 +78,13 @@ pub fn generateTokenWithConfig(allocator: std.mem.Allocator, config: Config) ![]
 ///
 /// Returns true if tokens match, false otherwise.
 pub fn validateToken(expected: []const u8, provided: []const u8) bool {
+    // SECURITY: Reject oversized tokens to prevent DoS via CPU exhaustion.
+    // CSRF tokens are ~43 chars (32 bytes base64url); 256 is generous.
+    const MAX_TOKEN_LENGTH = 256;
+    if (expected.len > MAX_TOKEN_LENGTH or provided.len > MAX_TOKEN_LENGTH) {
+        return false;
+    }
+
     // SECURITY: Must check length in constant-time to prevent timing attacks
     // We compare every byte regardless of length mismatch
 

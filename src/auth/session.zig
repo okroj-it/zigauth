@@ -84,6 +84,7 @@ pub const Error = error{
     InvalidSession,
     OutOfMemory,
     InvalidSessionId,
+    CookieHeaderTooLarge,
 };
 
 /// Session storage interface
@@ -206,6 +207,12 @@ pub const Cookie = struct {
 
 /// Parse session ID from Cookie header
 pub fn parseSessionId(cookie_header: []const u8, cookie_name: []const u8, allocator: mem.Allocator) Error!?[]u8 {
+    // SECURITY: Reject oversized cookie headers to prevent DoS
+    const MAX_COOKIE_HEADER_SIZE = 8192;
+    if (cookie_header.len > MAX_COOKIE_HEADER_SIZE) {
+        return Error.CookieHeaderTooLarge;
+    }
+
     var cookies = mem.splitSequence(u8, cookie_header, "; ");
 
     while (cookies.next()) |cookie| {

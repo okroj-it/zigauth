@@ -415,7 +415,18 @@ You just need to add your chosen framework to your own `build.zig.zon`.
 ### Phase 4: Production Ready
 - Complete documentation
 - Performance benchmarks
-- Security audit
+- ✅ Security audit (critical + high severity issues resolved)
+
+## 🔒 Security Hardening
+
+ZigAuth has undergone a comprehensive security audit. The following protections are in place:
+
+- **Memory safety**: Fixed double-free vulnerabilities in PHC hash parsing, use-after-free in cookie building
+- **DoS protection**: Cookie header size limits (8KB max), CSRF token length limits (256 bytes max), input validation on all adapters
+- **JWT security**: Algorithm validation on verify (rejects `"alg": "none"` and unsupported algorithms), constant-time signature comparison
+- **RBAC integrity**: Duplicate role assignment prevention, proper memory lifecycle for role strings
+- **Buffer safety**: Dynamic allocation for cookie building (replaces fixed 4KB stack buffers), input size validation on cookie name/value/attributes
+- **Cryptographic best practices**: Argon2id with OWASP settings, constant-time comparisons in CSRF, JWT, and password verification
 
 ## 🤝 Contributing
 
