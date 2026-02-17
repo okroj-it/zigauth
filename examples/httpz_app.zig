@@ -74,7 +74,7 @@ pub fn main() !void {
     // Start server
     var server = try httpz.Server(void).init(
         allocator,
-        .{ .address = .{ .tcp = .{ .host = "0.0.0.0", .port = 3001 } } },
+        .{ .address = .{ .ip = .{ .host = "0.0.0.0", .port = 3001 } } },
         {},
     );
     defer {
@@ -206,10 +206,9 @@ fn handleProfile(req: *httpz.Request, res: *httpz.Response) !void {
     const allocator = req.arena;
 
     // Validate session
-    const store = global_session_store.store();
     const user_id = try zigauth.adapters.httpz.validateSessionCookie(
         allocator,
-        &store,
+        &global_session_store,
         req,
         "session_id",
     ) orelse {
@@ -242,10 +241,9 @@ fn handleAdmin(req: *httpz.Request, res: *httpz.Response) !void {
     const allocator = req.arena;
 
     // Validate session
-    const store = global_session_store.store();
     const user_id = try zigauth.adapters.httpz.validateSessionCookie(
         allocator,
-        &store,
+        &global_session_store,
         req,
         "session_id",
     ) orelse {

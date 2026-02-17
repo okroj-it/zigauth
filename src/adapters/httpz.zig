@@ -39,7 +39,7 @@ pub const AuthContext = struct {
 /// Session authentication middleware
 pub fn sessionAuth(
     allocator: std.mem.Allocator,
-    store: *zigauth.storage.memory.MemoryStore.Store,
+    store: *zigauth.storage.memory.MemoryStore,
     cookie_name: []const u8,
     required: bool,
 ) type {
@@ -47,7 +47,7 @@ pub fn sessionAuth(
         const Self = @This();
 
         allocator: std.mem.Allocator,
-        store: *zigauth.storage.memory.MemoryStore.Store,
+        store: *zigauth.storage.memory.MemoryStore,
         cookie_name: []const u8,
         required: bool,
 
@@ -77,7 +77,8 @@ pub fn sessionAuth(
             };
 
             // Validate session
-            const session = self.store.get(self.allocator, session_id) catch {
+            const store_interface = self.store.store();
+            const session = store_interface.get(self.allocator, session_id) catch {
                 if (self.required) {
                     res.status = 401;
                     res.body = "Unauthorized: Invalid session";
@@ -270,13 +271,14 @@ pub fn buildSetCookie(
 /// Helper: Validate session and return user ID
 pub fn validateSessionCookie(
     allocator: std.mem.Allocator,
-    store: *zigauth.storage.memory.MemoryStore.Store,
+    store: *zigauth.storage.memory.MemoryStore,
     req: *httpz.Request,
     cookie_name: []const u8,
-) !?[]const u8 {
+)  !?[]const u8 {
     const session_id = extractCookie(req, cookie_name) orelse return null;
 
-    const session = store.get(allocator, session_id) catch return null;
+    const store_interface = store.store();
+    const session = store_interface.get(allocator, session_id) catch return null;
     defer {
         var s = session;
         s.deinit(allocator);
