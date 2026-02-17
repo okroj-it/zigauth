@@ -11,6 +11,12 @@ pub fn build(b: *std.Build) void {
     });
     const zap_mod = zap_dep.module("zap");
 
+    const httpz_dep = b.dependency("httpz", .{
+        .target = t,
+        .optimize = o,
+    });
+    const httpz_mod = httpz_dep.module("httpz");
+
     // Library module
     const zigauth_mod = b.createModule(.{
         .root_source_file = b.path("src/zigauth.zig"),
@@ -18,6 +24,7 @@ pub fn build(b: *std.Build) void {
         .optimize = o,
         .imports = &.{
             .{ .name = "zap", .module = zap_mod },
+            .{ .name = "httpz", .module = httpz_mod },
         },
     });
 
@@ -173,10 +180,29 @@ pub fn build(b: *std.Build) void {
     const zigzap_example_step = b.step("example-zigzap", "Run Zigzap web server example");
     zigzap_example_step.dependOn(&run_zigzap_example.step);
 
+    const httpz_example = b.addExecutable(.{
+        .name = "httpz_app",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/httpz_app.zig"),
+            .target = t,
+            .optimize = o,
+            .imports = &.{
+                .{ .name = "zigauth", .module = zigauth_mod },
+                .{ .name = "httpz", .module = httpz_mod },
+            },
+        }),
+    });
+    b.installArtifact(httpz_example);
+
+    const run_httpz_example = b.addRunArtifact(httpz_example);
+    const httpz_example_step = b.step("example-httpz", "Run http.zig web server example");
+    httpz_example_step.dependOn(&run_httpz_example.step);
+
     const example_step = b.step("example", "Run all examples");
     example_step.dependOn(&run_password_example.step);
     example_step.dependOn(&run_jwt_example.step);
     example_step.dependOn(&run_session_example.step);
     example_step.dependOn(&run_rbac_example.step);
     example_step.dependOn(&run_zigzap_example.step);
+    example_step.dependOn(&run_httpz_example.step);
 }

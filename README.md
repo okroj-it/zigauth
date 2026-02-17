@@ -18,7 +18,7 @@ ZigAuth is the first comprehensive authentication and authorization framework fo
 - 🎫 **JWT Tokens**: HMAC-SHA256 signing, verification, refresh tokens ✅
 - 📝 **Sessions**: Memory storage with cookie support, thread-safe operations ✅
 - 👥 **RBAC**: Role-Based Access Control with permission wildcards ✅
-- 🔌 **Zigzap Adapter**: Session, JWT, and RBAC middleware for Zigzap framework ✅
+- 🔌 **Framework Adapters**: Zigzap ✅ | http.zig ✅ | Jetzig (Planned) | Tokamak (Planned)
 
 ## 📦 Installation
 
@@ -239,6 +239,13 @@ if (rbac.userHasAllPermissions("user_123", &required)) {
 - [x] Bearer token extraction
 - [x] Automatic 401/403 responses
 
+**http.zig Adapter**:
+- [x] Session authentication via dispatch pattern
+- [x] JWT authentication middleware
+- [x] RBAC authorization middleware
+- [x] Cookie and Bearer token helpers
+- [x] Session validation utilities
+
 **Testing**:
 - [x] 61 comprehensive tests passing
 - [x] No memory leaks
@@ -277,8 +284,8 @@ zig build example  # Run all examples
 - **Rate Limiting**: Token bucket algorithm, sliding window, per-user limits, IP-based limits
 
 ### Phase 3: Framework Integrations
-- http.zig, Jetzig, Tokamak adapters
-- PostgreSQL & SQLite storage
+- 🚧 Jetzig & Tokamak adapters (built on http.zig)
+- PostgreSQL & SQLite storage backends
 
 ### Phase 4: Production Ready
 - Complete documentation
