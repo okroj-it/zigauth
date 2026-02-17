@@ -263,27 +263,46 @@ if (rbac.userHasAllPermissions("user_123", &required)) {
 **Testing**:
 - [x] 61 comprehensive tests passing
 - [x] No memory leaks
-- [x] Zero external dependencies
+- [x] **Zero framework dependencies** - use any Zig web framework!
 
 ## 🧪 Testing & Examples
+
+### Core Examples (No Framework Required)
 
 ```bash
 # Run all tests
 zig build test
 
-# Run examples
-zig build example-password
-zig build example-jwt
-zig build example-session
-zig build example-rbac
-zig build example-zigzap  # Zigzap web server demo (port 3000)
-zig build example-httpz   # http.zig web server demo (port 3001)
-zig build example  # Run all examples
-
-# Framework integration examples
-See examples/jetzig_usage.md  # Jetzig integration guide
-See examples/tokamak_usage.md # Tokamak integration guide
+# Run core examples - demonstrate ZigAuth features
+zig build example-password  # Password hashing with Argon2id
+zig build example-jwt       # JWT token generation/verification
+zig build example-session   # Session management
+zig build example-rbac      # Role-based access control
+zig build example           # Run all core examples
 ```
+
+### Framework Integration Examples
+
+ZigAuth provides adapters for popular frameworks, but **doesn't include them as dependencies** to keep your builds lean.
+
+**Working examples** (copy to your project):
+- **Zigzap**: See `examples/zigzap_app.zig` + `examples/FRAMEWORK_EXAMPLES.md`
+- **http.zig**: See `examples/httpz_app.zig` + `examples/FRAMEWORK_EXAMPLES.md`
+
+**Documentation guides**:
+- **Jetzig**: See `examples/jetzig_usage.md`
+- **Tokamak**: See `examples/tokamak_usage.md`
+
+All adapters are always available via:
+```zig
+const zigauth = @import("zigauth");
+zigauth.adapters.zigzap    // Zigzap middleware
+zigauth.adapters.httpz     // http.zig helpers
+zigauth.adapters.jetzig    // Jetzig helpers
+zigauth.adapters.tokamak   // Tokamak middleware
+```
+
+You just need to add your chosen framework to your own `build.zig.zon`.
 
 ## 🗺️ Roadmap
 

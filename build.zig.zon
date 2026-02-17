@@ -4,14 +4,8 @@
     .fingerprint = 0x807ca9126f6badc,
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
-        .zap = .{
-            .url = "https://github.com/zigzap/zap/archive/refs/tags/v0.11.0.tar.gz",
-            .hash = "12204b8288998d664c313e53b2867938ed8465eea3db84535181077b479ff495b776",
-        },
-        .httpz = .{
-            .url = "git+https://github.com/karlseguin/http.zig?ref=master#ddaf1989f9c5fe1b139fa846ad273efd4368083a",
-            .hash = "httpz-0.0.0-PNVzrN40BwD3lGAE8l_pShvVIGSlWglmFOsdhJnMVcXR",
-        },
+        // No framework dependencies - ZigAuth is framework-agnostic
+        // Users add their chosen framework to their own build.zig.zon
     },
     .paths = .{ "build.zig", "build.zig.zon", "src" },
 }
