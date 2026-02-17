@@ -18,7 +18,7 @@ ZigAuth is the first comprehensive authentication and authorization framework fo
 - 🎫 **JWT Tokens**: HMAC-SHA256 signing, verification, refresh tokens ✅
 - 📝 **Sessions**: Memory storage with cookie support, thread-safe operations ✅
 - 👥 **RBAC**: Role-Based Access Control with permission wildcards ✅
-- 🔌 **Framework Adapters**: Zigzap ✅ | http.zig ✅ | Jetzig (Planned) | Tokamak (Planned)
+- 🔌 **Framework Adapters**: Zigzap ✅ | http.zig ✅ | Jetzig ✅ | Tokamak ✅
 
 ## 📦 Installation
 
@@ -246,6 +246,20 @@ if (rbac.userHasAllPermissions("user_123", &required)) {
 - [x] Cookie and Bearer token helpers
 - [x] Session validation utilities
 
+**Jetzig Adapter**:
+- [x] Session validation helpers
+- [x] JWT authentication helpers
+- [x] RBAC permission checking
+- [x] Login/logout response builders
+- [x] Cookie management utilities
+
+**Tokamak Adapter**:
+- [x] Session auth middleware with DI
+- [x] JWT auth middleware with Context
+- [x] RBAC auth middleware
+- [x] AuthContext for dependency injection
+- [x] Helper functions for session/cookie handling
+
 **Testing**:
 - [x] 61 comprehensive tests passing
 - [x] No memory leaks
@@ -283,9 +297,10 @@ zig build example  # Run all examples
 - **CSRF Protection**: Token generation/validation, double-submit cookies, SameSite enforcement
 - **Rate Limiting**: Token bucket algorithm, sliding window, per-user limits, IP-based limits
 
-### Phase 3: Framework Integrations
-- 🚧 Jetzig & Tokamak adapters (built on http.zig)
-- PostgreSQL & SQLite storage backends
+### Phase 3: Framework Integrations ✅ COMPLETE
+- ✅ Jetzig adapter (helper-based integration)
+- ✅ Tokamak adapter (DI-based middleware)
+- PostgreSQL & SQLite storage backends (Planned)
 
 ### Phase 4: Production Ready
 - Complete documentation

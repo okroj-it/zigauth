@@ -15,6 +15,8 @@ pub const authz = struct {
 pub const adapters = struct {
     pub const zigzap = @import("adapters/zigzap.zig");
     pub const httpz = @import("adapters/httpz.zig");
+    pub const jetzig = @import("adapters/jetzig.zig");
+    pub const tokamak = @import("adapters/tokamak.zig");
 };
 
 pub const security = struct {
