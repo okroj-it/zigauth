@@ -1,9 +1,14 @@
 # Zig build artifacts
 zig-cache/
+.zig-cache/
 zig-out/
 
 # Progress tracking (local development notes)
 PROGRESS.md
+
+# Test artifacts
+cookies.txt
+*.txt
 
 # Editor files
 .vscode/
