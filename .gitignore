@@ -1,0 +1,21 @@
+# Zig build artifacts
+zig-cache/
+zig-out/
+
+# Progress tracking (local development notes)
+PROGRESS.md
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Dependencies
+.zigmod/
+deps.zig
