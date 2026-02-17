@@ -29,7 +29,8 @@ pub const MemoryStore = struct {
 
         var iter = self.sessions.iterator();
         while (iter.next()) |entry| {
-            self.allocator.free(entry.key_ptr.*);
+            const key_to_free: []u8 = @constCast(entry.key_ptr.*);
+            self.allocator.free(key_to_free);
             if (entry.value_ptr.owned) {
                 var session = entry.value_ptr.session;
                 session.deinit(self.allocator);
@@ -59,16 +60,17 @@ pub const MemoryStore = struct {
         defer self.mutex.unlock();
 
         // Generate session ID
-        const session_id = try session_mod.generateSessionId(allocator);
-        errdefer allocator.free(session_id);
+        // IMPORTANT: Use self.allocator for session data so it can be freed in destroy()
+        const session_id = try session_mod.generateSessionId(self.allocator);
+        errdefer self.allocator.free(session_id);
 
         const now = std.time.timestamp();
 
         // Create session
-        const data = std.StringHashMap([]const u8).init(allocator);
+        const data = std.StringHashMap([]const u8).init(self.allocator);
         const new_session = Session{
             .id = session_id,
-            .user_id = try allocator.dupe(u8, user_id),
+            .user_id = try self.allocator.dupe(u8, user_id),
             .data = data,
             .created_at = now,
             .expires_at = now + ttl,
@@ -76,7 +78,8 @@ pub const MemoryStore = struct {
         };
 
         // Store session
-        const key = try allocator.dupe(u8, session_id);
+        // IMPORTANT: Use self.allocator to allocate key so it can be freed with self.allocator in destroy()
+        const key = try self.allocator.dupe(u8, session_id);
         try self.sessions.put(key, .{
             .session = new_session,
             .owned = true,
@@ -134,7 +137,10 @@ pub const MemoryStore = struct {
         defer self.mutex.unlock();
 
         if (self.sessions.fetchRemove(session_id)) |kv| {
-            self.allocator.free(kv.key);
+            // Free the HashMap key (which was allocated with dupe)
+            const key_to_free: []u8 = @constCast(kv.key);
+            self.allocator.free(key_to_free);
+
             if (kv.value.owned) {
                 var session = kv.value.session;
                 session.deinit(self.allocator);
@@ -164,7 +170,8 @@ pub const MemoryStore = struct {
         // Remove expired sessions
         for (to_remove.items) |session_id| {
             if (self.sessions.fetchRemove(session_id)) |kv| {
-                self.allocator.free(kv.key);
+                const key_to_free: []u8 = @constCast(kv.key);
+                self.allocator.free(key_to_free);
                 if (kv.value.owned) {
                     var session = kv.value.session;
                     session.deinit(self.allocator);

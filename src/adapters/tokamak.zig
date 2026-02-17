@@ -248,7 +248,8 @@ pub fn getUserIdFromSession(
         return null;
     }
 
-    return session.user_id;
+    // IMPORTANT: Return a copy since the session will be freed by defer
+    return try allocator.dupe(u8, session.user_id);
 }
 
 /// Create session and return Set-Cookie header
